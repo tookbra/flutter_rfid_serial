@@ -1,4 +1,4 @@
-package com.washer.flutter.rfid.flutter_rfid_serial;
+package com.washer.flutter.rfid.serial;
 
 import androidx.annotation.NonNull;
 

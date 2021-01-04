@@ -1,4 +1,4 @@
-group 'com.washer.flutter.rfid.flutter_rfid_serial'
+group 'com.washer.flutter.rfid.serial'
 version '1.0'
 
 buildscript {
