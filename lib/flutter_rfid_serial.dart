@@ -1,14 +1,12 @@
+library flutter_rfid_serial;
 
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/services.dart';
+import 'package:flutter_rfid_serial/RfidState.dart';
+import 'package:flutter_rfid_serial/models.dart';
 
-class FlutterRfidSerial {
-  static const MethodChannel _channel =
-      const MethodChannel('flutter_rfid_serial');
-
-  static Future<String> get platformVersion async {
-    final String version = await _channel.invokeMethod('getPlatformVersion');
-    return version;
-  }
-}
+part './RfidReader.dart';
+part './RfidReaderConnection.dart';
+part './FlutterRfidSerial.dart';

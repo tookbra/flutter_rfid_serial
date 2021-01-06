@@ -18,6 +18,6 @@ void main() {
   });
 
   test('getPlatformVersion', () async {
-    expect(await FlutterRfidSerial.platformVersion, '42');
+    expect(await RfidReader.platformVersion, '42');
   });
 }
