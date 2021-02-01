@@ -54,7 +54,11 @@ public class RfidManager {
 
     private EventChannel readChannel;
 
+    private EventChannel stopChannel;
+
     private EventChannel.EventSink readSink;
+
+    private EventChannel.EventSink stopSink;
 
     private BinaryMessenger binaryMessenger;
 
@@ -75,7 +79,8 @@ public class RfidManager {
             if (null != info && 0 == info.getResult()) {
                 Log.d(TAG, info.toString());
                 if(null != readSink) {
-                    mExecutor.execute(() -> readSink.success(info));
+                    Log.d(TAG, "read tag:" + info.getEpc());
+                    mExecutor.execute(() -> readSink.success(info.getEpc()));
                 }
 
             }
@@ -85,6 +90,10 @@ public class RfidManager {
         client.onTagEpcOver = (readerName, info) -> {
             if (null != info) {
                 Log.d(TAG, info.toString());
+                if(null != stopSink) {
+                    Log.d(TAG, "Epc log over.");
+                    mExecutor.execute(() -> stopSink.success(true));
+                }
             }
         };
 
@@ -126,6 +135,26 @@ public class RfidManager {
         }
     };
 
+
+    private final EventChannel.StreamHandler stopStreamHandler = new EventChannel.StreamHandler() {
+        @Override
+        public void onListen(Object o, EventChannel.EventSink eventSink) {
+            stopSink = eventSink;
+        }
+        @Override
+        public void onCancel(Object o) {
+            // If canceled by local, disconnects - in other case, by remote, does nothing
+//            self.disconnect();
+
+            // True dispose
+            AsyncTask.execute(() -> {
+                stopChannel.setStreamHandler(null);
+
+                Log.d(TAG, "Disconnected stream handler");
+            });
+        }
+    };
+
     /**
      * connect to serialPort
      * @param
@@ -145,6 +174,9 @@ public class RfidManager {
 
                 readChannel = new EventChannel(binaryMessenger, namespace + "/read/");
                 readChannel.setStreamHandler(readStreamHandler);
+
+                stopChannel = new EventChannel(binaryMessenger, namespace + "/stop/");
+                stopChannel.setStreamHandler(stopStreamHandler);
             } else {
                 Log.d(TAG, "Stop error");
             }
