@@ -1,12 +1,18 @@
 package com.washer.flutter.rfid.serial;
 
+import android.app.Activity;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
 
 import com.washer.flutter.rfid.serial.util.GlobalClient;
 
+import java.lang.ref.WeakReference;
+
 import io.flutter.embedding.engine.plugins.FlutterPlugin;
+import io.flutter.embedding.engine.plugins.activity.ActivityAware;
+import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding;
+import io.flutter.plugin.common.BinaryMessenger;
 import io.flutter.plugin.common.MethodCall;
 import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
@@ -16,7 +22,7 @@ import io.flutter.plugin.common.PluginRegistry.Registrar;
 import io.flutter.view.FlutterNativeView;
 
 /** FlutterRfidSerialPlugin */
-public class FlutterRfidSerialPlugin implements FlutterPlugin, MethodCallHandler, PluginRegistry.ViewDestroyListener {
+public class FlutterRfidSerialPlugin implements FlutterPlugin, MethodCallHandler, ActivityAware, PluginRegistry.ViewDestroyListener {
   /// The MethodChannel that will the communication between Flutter and native Android
   ///
   /// This local reference serves to register the plugin with the Flutter Engine and unregister it
@@ -29,11 +35,14 @@ public class FlutterRfidSerialPlugin implements FlutterPlugin, MethodCallHandler
 
   private static final String NAMESPACE = "flutter_rfid_serial";
 
+  private WeakReference<Activity> mActivity;
+
+  private BinaryMessenger binaryMessenger;
+
   @Override
   public void onAttachedToEngine(@NonNull FlutterPluginBinding flutterPluginBinding) {
+    binaryMessenger = flutterPluginBinding.getBinaryMessenger();
     channel = new MethodChannel(flutterPluginBinding.getBinaryMessenger(), NAMESPACE);
-    channel.setMethodCallHandler(this);
-    rfidManager = new RfidManager(flutterPluginBinding.getBinaryMessenger(), NAMESPACE);
   }
 
   @Override
@@ -43,17 +52,7 @@ public class FlutterRfidSerialPlugin implements FlutterPlugin, MethodCallHandler
         result.success("Android " + android.os.Build.VERSION.RELEASE);
         break;
       case "connect":
-        if (!call.hasArgument("address")) {
-          result.error("invalid_argument", "argument 'address' not found", null);
-          break;
-        }
-        if (!call.hasArgument("port")) {
-          result.error("invalid_argument", "argument 'port' not found", null);
-          break;
-        }
-        String address = call.argument("address");
-        String port = call.argument("port");
-        int id = rfidManager.connect(address, port);
+        int id = rfidManager.connect();
         if(id == 0) {
           result.error("connect_error", "", null);
         } else {
@@ -106,5 +105,38 @@ public class FlutterRfidSerialPlugin implements FlutterPlugin, MethodCallHandler
   public boolean onViewDestroy(FlutterNativeView flutterNativeView) {
     rfidManager.destroy();
     return false;
+  }
+
+  @Override
+  public void onAttachedToActivity(@NonNull ActivityPluginBinding activityPluginBinding) {
+    mActivity = new WeakReference<>(activityPluginBinding.getActivity());
+    init();
+  }
+
+  @Override
+  public void onDetachedFromActivityForConfigChanges() {
+    dispose();
+  }
+
+  @Override
+  public void onReattachedToActivityForConfigChanges(@NonNull ActivityPluginBinding activityPluginBinding) {
+    mActivity = new WeakReference<>(activityPluginBinding.getActivity());
+    init();
+  }
+
+  @Override
+  public void onDetachedFromActivity() {
+    dispose();
+  }
+
+  private void init() {
+    channel.setMethodCallHandler(this);
+    rfidManager = new RfidManager(binaryMessenger, NAMESPACE, mActivity.get());
+  }
+
+  private void dispose() {
+    if(rfidManager != null) {
+      rfidManager.destroy();
+    }
   }
 }

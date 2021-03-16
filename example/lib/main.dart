@@ -44,13 +44,20 @@ class _MyAppState extends State<MyApp> {
   }
 
   Future<void> connect() async {
-    RfidReader.connect("", "").then((_connection) {
+    RfidReader.connect().then((_connection) {
       showToast("true");
       _connection.input.listen((data){
-        print(data);
+        showToast(data);
       }).onDone((){
         print('done');
       });
+
+      _connection.stop.listen((data){
+        showToast("stop:$data");
+      }).onDone((){
+        print('done');
+      });
+
     }).catchError((error) {
       print('Cannot connect, exception occured');
       print(error);

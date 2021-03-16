@@ -1,5 +1,6 @@
 package com.washer.flutter.rfid.serial;
 
+import android.app.Activity;
 import android.os.AsyncTask;
 import android.os.Message;
 import android.util.Log;
@@ -52,6 +53,10 @@ public class RfidManager {
     // 是否在读
     private boolean isReader = false;
 
+    private static String RFID_SERIAL = "/dev/ttyS1";
+
+    private static int RFID_BAUD_RATE = 115200;
+
     private EventChannel readChannel;
 
     private EventChannel stopChannel;
@@ -60,17 +65,18 @@ public class RfidManager {
 
     private EventChannel.EventSink stopSink;
 
-    private BinaryMessenger binaryMessenger;
+    private final BinaryMessenger binaryMessenger;
 
-    private String namespace;
+    private final String namespace;
+
+    private final Activity activity;
 
     private int lastConnectionId = 0;
 
-    private ExecutorService mExecutor = Executors.newSingleThreadExecutor();
-
-    public RfidManager(BinaryMessenger binaryMessenger, String namespace) {
+    public RfidManager(BinaryMessenger binaryMessenger, String namespace, Activity activity) {
         this.binaryMessenger = binaryMessenger;
         this.namespace = namespace;
+        this.activity = activity;
     }
 
     private void subHandler(GClient client) {
@@ -80,7 +86,9 @@ public class RfidManager {
                 Log.d(TAG, info.toString());
                 if(null != readSink) {
                     Log.d(TAG, "read tag:" + info.getEpc());
-                    mExecutor.execute(() -> readSink.success(info.getEpc()));
+                    AsyncTask.execute(() -> {
+                        activity.runOnUiThread(() -> readSink.success(info.getEpc()));
+                    });
                 }
 
             }
@@ -92,7 +100,10 @@ public class RfidManager {
                 Log.d(TAG, info.toString());
                 if(null != stopSink) {
                     Log.d(TAG, "Epc log over.");
-                    mExecutor.execute(() -> stopSink.success(true));
+                    isReader = false;
+                    AsyncTask.execute(() -> {
+                        activity.runOnUiThread(() -> stopSink.success(true));
+                    });
                 }
             }
         };
@@ -159,14 +170,15 @@ public class RfidManager {
      * connect to serialPort
      * @param
      */
-    public int connect(String address, String port) {
-        String param = "/dev/" +  address + ":" + port;
+    public int connect() {
+        String param = RFID_SERIAL + ":" + RFID_BAUD_RATE;
         Log.d(TAG, "Connecting to " + param);
-        if (GlobalClient.getClient().openAndroidSerial(param, 1000)) {
+
+        if (lastConnectionId != 0 && GlobalClient.getClient().openAndroidSerial(param, 1000)) {
             MsgBaseStop msgBaseStop = new MsgBaseStop();
             GlobalClient.getClient().sendSynMsg(msgBaseStop);
             if (0 == msgBaseStop.getRtCode()) {
-                Log.d(TAG, "Stop successful");
+                Log.d(TAG, "connect successful");
                 isClient = true;
                 ++lastConnectionId;
 
@@ -192,6 +204,7 @@ public class RfidManager {
         if(isClient) {
             if(GlobalClient.getClient().close()) {
                 isClient = false;
+                lastConnectionId = 0;
             }
         }
         return !isClient;
@@ -336,10 +349,6 @@ public class RfidManager {
                 MsgBaseStop stop = new MsgBaseStop();
                 GlobalClient.getClient().sendSynMsg(stop);
             }
-        }
-
-        if(!mExecutor.isShutdown()) {
-            mExecutor.shutdown();
         }
     }
 }

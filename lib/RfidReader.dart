@@ -9,11 +9,10 @@ class RfidReader {
       await FlutterRfidSerial._methodChannel.invokeMethod('getState'));
 
   /// 打开连接
-  static Future<RfidReaderConnection> connect(
-      String address, String port) async {
+  static Future<RfidReaderConnection> connect() async {
     return RfidReaderConnection._consumeConnection(await FlutterRfidSerial
         ._methodChannel
-        .invokeMethod('connect', {"address": address, "port": port}));
+        .invokeMethod('connect'));
   }
 
   /// 断开连接
