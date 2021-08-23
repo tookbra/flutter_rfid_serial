@@ -1,7 +1,7 @@
 part of flutter_rfid_serial;
 
 class RfidReader {
-  static Future<String> get platformVersion =>
+  static Future<dynamic>? get platformVersion =>
       FlutterRfidSerial._methodChannel.invokeMethod('getPlatformVersion');
 
   /// 获取连接状态

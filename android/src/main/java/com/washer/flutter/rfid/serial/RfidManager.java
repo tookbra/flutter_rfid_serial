@@ -2,10 +2,12 @@ package com.washer.flutter.rfid.serial;
 
 import android.app.Activity;
 import android.os.AsyncTask;
+import android.os.Build;
 import android.os.Message;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.RequiresApi;
 
 import com.gg.reader.api.dal.GClient;
 import com.gg.reader.api.dal.HandlerTag6bLog;
@@ -33,8 +35,13 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Hashtable;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -43,6 +50,7 @@ import io.flutter.plugin.common.BinaryMessenger;
 import io.flutter.plugin.common.EventChannel;
 import io.flutter.plugin.common.MethodChannel.Result;
 
+@RequiresApi(api = Build.VERSION_CODES.N)
 public class RfidManager {
 
     private static final String TAG = "RfidManager";
@@ -73,6 +81,8 @@ public class RfidManager {
 
     private int lastConnectionId = 0;
 
+    private Set<String> tagList = ConcurrentHashMap.newKeySet();
+
     public RfidManager(BinaryMessenger binaryMessenger, String namespace, Activity activity) {
         this.binaryMessenger = binaryMessenger;
         this.namespace = namespace;
@@ -83,13 +93,14 @@ public class RfidManager {
         // 订阅标签上报事件
         client.onTagEpcLog = (readerName, info) -> {
             if (null != info && 0 == info.getResult()) {
-                Log.d(TAG, info.toString());
-                if(null != readSink) {
-                    Log.d(TAG, "read tag:" + info.getEpc());
-                    AsyncTask.execute(() -> {
+                AsyncTask.execute(() -> {
+                    if(null != readSink && !tagList.contains(info.getEpc())) {
+                        Log.d(TAG, "read tag:" + info.getEpc());
+                        tagList.add(info.getEpc());
                         activity.runOnUiThread(() -> readSink.success(info.getEpc()));
-                    });
-                }
+                    }
+                });
+
 
             }
         };
@@ -101,6 +112,7 @@ public class RfidManager {
                 if(null != stopSink) {
                     Log.d(TAG, "Epc log over.");
                     isReader = false;
+                    this.disConnect();
                     AsyncTask.execute(() -> {
                         activity.runOnUiThread(() -> stopSink.success(true));
                     });
@@ -174,7 +186,8 @@ public class RfidManager {
         String param = RFID_SERIAL + ":" + RFID_BAUD_RATE;
         Log.d(TAG, "Connecting to " + param);
 
-        if (lastConnectionId != 0 && GlobalClient.getClient().openAndroidSerial(param, 1000)) {
+        if (!isClient && GlobalClient.getClient().openAndroidSerial(param, 1000)) {
+            Log.d(TAG, "Connecting to 1" + param);
             MsgBaseStop msgBaseStop = new MsgBaseStop();
             GlobalClient.getClient().sendSynMsg(msgBaseStop);
             if (0 == msgBaseStop.getRtCode()) {
@@ -182,16 +195,17 @@ public class RfidManager {
                 isClient = true;
                 ++lastConnectionId;
 
-                subHandler(GlobalClient.getClient());
-
                 readChannel = new EventChannel(binaryMessenger, namespace + "/read/");
                 readChannel.setStreamHandler(readStreamHandler);
 
                 stopChannel = new EventChannel(binaryMessenger, namespace + "/stop/");
                 stopChannel.setStreamHandler(stopStreamHandler);
+                subHandler(GlobalClient.getClient());
             } else {
                 Log.d(TAG, "Stop error");
             }
+        } else {
+            Log.d(TAG, "Connecting to 2" + param);
         }
         return lastConnectionId;
     }
@@ -204,7 +218,9 @@ public class RfidManager {
         if(isClient) {
             if(GlobalClient.getClient().close()) {
                 isClient = false;
+                isReader = false;
                 lastConnectionId = 0;
+                tagList.clear();
             }
         }
         return !isClient;
@@ -266,6 +282,7 @@ public class RfidManager {
             GlobalClient.getClient().sendSynMsg(msgBaseStop);
             if (0x00 == msgBaseStop.getRtCode()) {
                 isReader = false;
+                this.disConnect();
                 Log.d(TAG, "Stop read successful");
             } else {
                 Log.d(TAG, "Stop read error");
@@ -285,7 +302,7 @@ public class RfidManager {
             if(!isReader) {
                 if (type == 0) {
                     MsgBaseInventoryEpc msgBaseInventoryEpc = new MsgBaseInventoryEpc();
-                    msgBaseInventoryEpc.setAntennaEnable(EnumG.AntennaNo_1 | EnumG.AntennaNo_2 | EnumG.AntennaNo_3 | EnumG.AntennaNo_4);
+                    msgBaseInventoryEpc.setAntennaEnable(EnumG.AntennaNo_1);
                     if (single) {
                         msgBaseInventoryEpc.setInventoryMode(EnumG.InventoryMode_Single);
                     } else {
@@ -348,6 +365,7 @@ public class RfidManager {
             if (isReader) {
                 MsgBaseStop stop = new MsgBaseStop();
                 GlobalClient.getClient().sendSynMsg(stop);
+                isClient = false;
             }
         }
     }

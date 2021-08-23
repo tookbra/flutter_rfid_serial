@@ -59,4 +59,5 @@ dependencies {
     implementation fileTree(include: ['*.jar'], dir: 'libs')
     compileOnly files("$flutterRoot/bin/cache/artifacts/engine/android-arm/flutter.jar")
     compileOnly 'androidx.annotation:annotation:+'
+    implementation 'org.greenrobot:eventbus:3.2.0'
 }
